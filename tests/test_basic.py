@@ -72,3 +72,9 @@ def test_articles_without_text_are_skipped():
 
 def test_p95_latency():
     assert round(percentile(list(range(1, 21)), 0.95), 2) == 19.05
+
+
+def test_search_keywords_drop_question_words():
+    from src.main import extract_search_keywords
+    question = "What evidence exists for fasting and inflammatory markers like CRP?"
+    assert extract_search_keywords(question) == "fasting inflammatory markers crp"

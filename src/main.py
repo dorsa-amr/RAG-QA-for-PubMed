@@ -19,10 +19,14 @@ from src.agent import create_qa_agent, query_agent
 
 def extract_search_keywords(question: str) -> str:
     """Extract useful search terms from a natural-language question."""
+    # PubMed requires every word to match, so question words and vague terms must go.
     stop_words = {
         "a", "about", "an", "and", "are", "can", "does", "for", "how",
         "in", "is", "of", "on", "or", "the", "to", "treatment", "what",
         "when", "which", "with", "why", "recent", "latest",
+        "affect", "based", "compare", "compared", "current", "do", "evidence",
+        "exists", "gaps", "help", "impact", "influence", "key", "known", "like",
+        "outcomes", "report", "reported", "research", "should", "that", "there", "today",
     }
     words = re.findall(r"[A-Za-z0-9-]+", question.lower())
     keywords = [word for word in words if word not in stop_words and len(word) > 1]
