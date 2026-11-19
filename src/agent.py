@@ -43,7 +43,10 @@ class RetrievalTool:
         """Format retrieved results for the language model."""
         
         if not results:
-            return "No relevant documents found in the knowledge base. Answer using general knowledge if possible."
+            return (
+                "No relevant documents found in the knowledge base. Do not answer from general "
+                "knowledge; state that the loaded literature does not cover this question."
+            )
         
         formatted = "Retrieved relevant scientific articles:\n\n"
         for i, result in enumerate(results, 1):
@@ -52,7 +55,7 @@ class RetrievalTool:
             pub_date = result['metadata'].get('pub_date', 'N/A')
             
             formatted += f"[{i}] PMID:{pmid} | {title} ({pub_date})\n"
-            formatted += f"Excerpt: {result['content'][:250]}...\n\n"
+            formatted += f"Content: {result['content']}\n\n"
         
         return formatted
 
@@ -83,18 +86,26 @@ class MultiAgentResearchSystem:
         """Run the three roles and return a LangChain-compatible message result."""
         self._search_state["searches"] = 0
         messages = payload.get("messages", [])
-        question = next(
-            (str(getattr(message, "content", "")) for message in reversed(messages)
-             if getattr(message, "type", "") == "human"),
-            "",
-        )
+        user_questions = [
+            str(getattr(message, "content", "")) for message in messages
+            if getattr(message, "type", "") == "human"
+        ]
+        question = user_questions[-1] if user_questions else ""
+        # Planner and verifier see only these strings, not the message history, so they
+        # need the earlier questions to resolve follow-ups like "What about side effects?".
+        previous_questions = user_questions[:-1][-3:]
+        context = (
+            "Earlier questions in this conversation (use them to resolve follow-ups):\n"
+            + "\n".join(f"- {q}" for q in previous_questions) + "\n\n"
+        ) if previous_questions else ""
         plan_response = self.planner.invoke([
             SystemMessage(content=(
                 "You are the planning agent for a biomedical research assistant. "
                 "Classify the question, identify the evidence needed, and state whether "
-                "a PubMed search is required. Keep the plan concise."
+                "a PubMed search is required. Keep the plan concise. If the question is "
+                "a follow-up, first restate it as a standalone question."
             )),
-            HumanMessage(content=question),
+            HumanMessage(content=f"{context}Current question: {question}"),
         ])
         plan = str(getattr(plan_response, "content", ""))
 
@@ -128,23 +139,14 @@ class MultiAgentResearchSystem:
                 "limitations, and disagreements. Do not mention the draft or internal agents."
             )),
             HumanMessage(content=(
-                f"Question: {question}\n\nResearch draft:\n{draft}\n\n"
+                f"{context}Question: {question}\n\nResearch draft:\n{draft}\n\n"
                 f"Retrieved evidence:\n{evidence}"
             )),
         ])
         final_answer = str(getattr(verification_response, "content", ""))
-        tool_messages = [
-            message for message in research_messages_result
-            if getattr(message, "type", "") == "tool"
-        ]
+        # Only what query_agent cannot derive from the messages; it builds the rest of the trace.
         self._last_trace = {
             "agents": ["planner", "researcher", "verifier"],
-            "tool_calls": [getattr(message, "name", "unknown") for message in tool_messages],
-            "retrieval_rounds": sum(
-                getattr(message, "name", "") in {"document_search", "search_more"}
-                for message in tool_messages
-            ),
-            "verification_called": True,
             "call_limit_reached": call_limit_reached,
         }
         return {"messages": research_messages_result + [AIMessage(content=final_answer)]}
@@ -190,11 +192,6 @@ def create_qa_agent(memory_enabled: bool = True):
         """Search for relevant scientific documents from PubMed by semantic similarity."""
         return budgeted_search(query)
 
-    @tool("reasoning")
-    def reasoning(note: str) -> str:
-        """Use this tool to structure and refine intermediate reasoning steps."""
-        return note
-
     @tool("search_more")
     def search_more(query: str) -> str:
         """Run a second PubMed search with refined terms when existing evidence is insufficient."""
@@ -214,7 +211,7 @@ def create_qa_agent(memory_enabled: bool = True):
 
     researcher = create_agent(
         model=llm,
-        tools=[document_search, search_more, verify_answer, reasoning],
+        tools=[document_search, search_more, verify_answer],
         system_prompt=(
             "You are a biomedical QA assistant with access to PubMed articles. "
             "Decide whether the question requires PubMed evidence. For biomedical or "
@@ -329,14 +326,19 @@ def query_agent(agent, question: str) -> str:
         ]
         tool_text = "\n".join(str(getattr(message, "content", "")) for message in tool_messages)
         pmids = list(dict.fromkeys(re.findall(r"PMID:(\d+)", tool_text)))
+        search_calls = sum(
+            getattr(message, "name", "") in {"document_search", "search_more"}
+            for message in tool_messages
+        )
+        # The tools' own counter is the source of truth: calls refused by the budget
+        # still produce a tool message but did not search.
+        searches_run = getattr(agent, "_search_state", {}).get("searches", search_calls)
         agent._last_trace = {
             "agents": getattr(agent, "_last_trace", {}).get("agents", []),
             "call_limit_reached": getattr(agent, "_last_trace", {}).get("call_limit_reached", False),
             "tool_calls": [getattr(message, "name", "unknown") for message in tool_messages],
-            "retrieval_rounds": sum(
-                getattr(message, "name", "") in {"document_search", "search_more"}
-                for message in tool_messages
-            ),
+            "retrieval_rounds": searches_run,
+            "searches_refused": search_calls - searches_run,
             "verification_called": any(
                 getattr(message, "name", "") == "verify_answer" for message in tool_messages
             ),

@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     # OpenAI
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     model_name: str = os.getenv("MODEL_NAME", "gpt-4o-mini")
-    temperature: float = float(os.getenv("TEMPERATURE", 0.7))
+    temperature: float = float(os.getenv("TEMPERATURE", 0))
     max_tokens: int = int(os.getenv("MAX_TOKENS", 2000))
     
     # Vector DB
@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     pubmed_max_articles: int = int(os.getenv("PUBMED_MAX_ARTICLES", 500))
     pubmed_use_full_text: bool = os.getenv("PUBMED_USE_FULL_TEXT", "true").lower() == "true"
     pubmed_full_text_char_limit: int = int(os.getenv("PUBMED_FULL_TEXT_CHAR_LIMIT", 20000))
+    ncbi_email: str = os.getenv("NCBI_EMAIL", "")
+    ncbi_api_key: str = os.getenv("NCBI_API_KEY", "")
     
     # Retrieval
     retrieval_top_k: int = int(os.getenv("RETRIEVAL_TOP_K", 5))

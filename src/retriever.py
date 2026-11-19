@@ -5,7 +5,7 @@ Vector database and retrieval pipeline for semantic search over documents.
 import os
 from typing import List, Dict, Any
 import chromadb
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
 from langchain_core.documents import Document
 from src.config import settings
@@ -45,7 +45,10 @@ class VectorStore:
             return
         
         print(f"Adding {len(documents)} documents to vector store...")
-        self.vector_store.add_documents(documents)
+        # Deterministic IDs make ingestion idempotent: re-loading a paper overwrites
+        # its chunks (upsert) instead of storing duplicates.
+        ids = [f"{doc.metadata['pmid']}-{doc.metadata['chunk_idx']}" for doc in documents]
+        self.vector_store.add_documents(documents, ids=ids)
         print("Documents added successfully")
     
     def search(self, query: str, k: int = None) -> List[Document]:

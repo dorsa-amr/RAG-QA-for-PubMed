@@ -102,11 +102,12 @@ def demo():
     print("AGENTIC RAG SYSTEM - DEMO MODE")
     print("="*70 + "\n")
     
-    # Load sample questions
+    # Assumes intermittent-fasting articles are loaded. The second and third questions
+    # are follow-ups, so they also exercise conversation memory.
     sample_questions = [
-        "What are the recent advances in deep learning?",
-        "Summarize the findings about neural networks.",
-        "What is the relationship between machine learning and AI?"
+        "Does intermittent fasting help with weight loss in adults?",
+        "What about side effects?",
+        "Which patient groups should avoid it?",
     ]
     
     print("Creating agent...")

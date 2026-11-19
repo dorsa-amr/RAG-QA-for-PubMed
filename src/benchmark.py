@@ -85,6 +85,7 @@ def run_benchmark(
     valid_citation_answers = 0
     error_count = 0
     call_limit_count = 0
+    budget_hit_count = 0
     results: list[dict] = []
 
     for i, question in enumerate(questions, start=1):
@@ -95,6 +96,8 @@ def run_benchmark(
         rounds = int(trace.get("retrieval_rounds", 0))
         retrieval_rounds.append(rounds)
         verification_calls += int(bool(trace.get("verification_called", False)))
+        # The model asked for more searches than the budget allowed.
+        budget_hit_count += 1 if trace.get("searches_refused", 0) > 0 else 0
 
         error_count += 1 if "error" in trace else 0
         call_limit_count += 1 if trace.get("call_limit_reached", False) else 0
@@ -141,6 +144,7 @@ def run_benchmark(
         "p95_latency_seconds": round(p95_latency, 3),
         "citation_coverage_percent": round(citation_coverage, 1),
         "questions_requiring_requery": requery_questions,
+        "questions_hitting_search_budget": budget_hit_count,
         "verification_call_rate_percent": round((verification_calls / len(questions)) * 100.0, 1),
         "inline_citation_rate_percent": round((inline_citation_hits / len(questions)) * 100.0, 1),
         "citation_validity_percent": round(
@@ -183,6 +187,7 @@ def run_benchmark(
         f"({summary['answers_with_valid_citations']}/{summary['answers_with_pmid']} cited answers)"
     )
     print(f"Questions requiring re-query: {summary['questions_requiring_requery']}")
+    print(f"Questions hitting the search budget: {summary['questions_hitting_search_budget']}")
     print(f"Verification call rate: {summary['verification_call_rate_percent']}%")
     print(f"Saved results to: {output_file}")
 

@@ -30,6 +30,17 @@ class PubMedFetcher:
         return raw.split(".", 1)[0]
 
     @staticmethod
+    def _identity_params(with_api_key: bool = True) -> Dict[str, str]:
+        """NCBI identification params; email and API key are optional settings."""
+        params = {"tool": "rag-system"}
+        if settings.ncbi_email:
+            params["email"] = settings.ncbi_email
+        # A free NCBI API key raises the E-utilities limit from 3 to 10 requests/second.
+        if with_api_key and settings.ncbi_api_key:
+            params["api_key"] = settings.ncbi_api_key
+        return params
+
+    @staticmethod
     def _get_with_retries(url: str, params: Dict[str, str], timeout: int = 15, retries: int = 3) -> requests.Response:
         """HTTP GET with light retry/backoff for transient API limits and network issues."""
         last_error = None
@@ -39,7 +50,10 @@ class PubMedFetcher:
                     url,
                     params=params,
                     timeout=timeout,
-                    headers={"User-Agent": "LLM-RAG/1.0 (mailto:user@example.com)"},
+                    headers={"User-Agent": (
+                        f"LLM-RAG/1.0 (mailto:{settings.ncbi_email})" if settings.ncbi_email
+                        else "LLM-RAG/1.0"
+                    )},
                 )
                 response.raise_for_status()
                 return response
@@ -72,12 +86,14 @@ class PubMedFetcher:
             "term": query,
             "retmode": "json",
             "retmax": max_results,
-            "tool": "rag-system",
-            "email": "user@example.com"
+            **PubMedFetcher._identity_params(),
         }
         
-        response = requests.get(f"{PubMedFetcher.BASE_URL}/esearch.fcgi", params=params)
-        response.raise_for_status()
+        response = PubMedFetcher._get_with_retries(
+            f"{PubMedFetcher.BASE_URL}/esearch.fcgi",
+            params=params,
+            timeout=15,
+        )
         
         data = response.json()
         pmids = data.get("esearchresult", {}).get("idlist", [])
@@ -116,8 +132,7 @@ class PubMedFetcher:
                 "db": "pubmed",
                 "id": batch_str,
                 "retmode": "json",
-                "tool": "rag-system",
-                "email": "user@example.com"
+                **PubMedFetcher._identity_params(),
             }
             
             try:
@@ -163,8 +178,8 @@ class PubMedFetcher:
             params = {
                 "ids": ",".join(batch),
                 "format": "json",
-                "tool": "rag-system",
-                "email": "user@example.com",
+                # The PMC ID converter is not an E-utility and does not take api_key.
+                **PubMedFetcher._identity_params(with_api_key=False),
             }
             try:
                 response = PubMedFetcher._get_with_retries(
@@ -200,8 +215,7 @@ class PubMedFetcher:
                 "db": "pubmed",
                 "id": ",".join(batch),
                 "retmode": "xml",
-                "tool": "rag-system",
-                "email": "user@example.com",
+                **PubMedFetcher._identity_params(),
             }
 
             try:
@@ -245,8 +259,7 @@ class PubMedFetcher:
                 "db": "pmc",
                 "id": ",".join(batch),
                 "retmode": "xml",
-                "tool": "rag-system",
-                "email": "user@example.com",
+                **PubMedFetcher._identity_params(),
             }
 
             try:
