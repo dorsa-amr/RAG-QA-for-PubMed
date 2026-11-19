@@ -78,16 +78,36 @@ def run_benchmark(
     print(f"Running {len(questions)} benchmark questions...\n")
 
     latencies: list[float] = []
+    retrieval_rounds: list[int] = []
+    verification_calls = 0
     citation_hits = 0
+    inline_citation_hits = 0
+    valid_citation_answers = 0
+    error_count = 0
+    call_limit_count = 0
     results: list[dict] = []
 
     for i, question in enumerate(questions, start=1):
         start = time.perf_counter()
         answer = query_agent(agent, question)
         elapsed = time.perf_counter() - start
+        trace = getattr(agent, "_last_trace", {})
+        rounds = int(trace.get("retrieval_rounds", 0))
+        retrieval_rounds.append(rounds)
+        verification_calls += int(bool(trace.get("verification_called", False)))
 
-        has_pmid = bool(re.search(r"\[PMID:\d+\]", answer))
+        error_count += 1 if "error" in trace else 0
+        call_limit_count += 1 if trace.get("call_limit_reached", False) else 0
+        cited_pmids = set(re.findall(r"\[PMID:(\d+)\]", answer))
+        has_pmid = bool(cited_pmids)
+        # Inline means the model cited on its own, without the deterministic fallback.
+        has_inline_citation = has_pmid and not trace.get("fallback_citation_added", False)
+        # Valid means every cited PMID was actually returned by retrieval for this question.
+        unsupported_pmids = sorted(cited_pmids - set(trace.get("retrieved_pmids", [])))
+        citations_valid = has_pmid and not unsupported_pmids
         citation_hits += 1 if has_pmid else 0
+        inline_citation_hits += 1 if has_inline_citation else 0
+        valid_citation_answers += 1 if citations_valid else 0
         latencies.append(elapsed)
 
         results.append(
@@ -96,21 +116,39 @@ def run_benchmark(
                 "question": question,
                 "latency_seconds": round(elapsed, 3),
                 "has_pmid_citation": has_pmid,
+                "has_inline_citation": has_inline_citation,
+                "citations_valid": citations_valid,
+                "unsupported_pmids": unsupported_pmids,
+                "agent_trace": trace,
                 "answer": answer,
             }
         )
-        print(f"[{i}/{len(questions)}] {elapsed:.2f}s | cited={has_pmid}")
+        print(
+            f"[{i}/{len(questions)}] {elapsed:.2f}s | cited={has_pmid} "
+            f"| inline={has_inline_citation} | valid={citations_valid}"
+        )
 
     avg_latency = sum(latencies) / len(latencies)
     p95_latency = percentile(latencies, 0.95)
     citation_coverage = (citation_hits / len(questions)) * 100.0
+    requery_questions = sum(rounds > 1 for rounds in retrieval_rounds)
 
     summary = {
         "num_questions": len(questions),
+        "errors": error_count,
+        "call_limit_reached": call_limit_count,
         "avg_latency_seconds": round(avg_latency, 3),
         "p95_latency_seconds": round(p95_latency, 3),
         "citation_coverage_percent": round(citation_coverage, 1),
+        "questions_requiring_requery": requery_questions,
+        "verification_call_rate_percent": round((verification_calls / len(questions)) * 100.0, 1),
+        "inline_citation_rate_percent": round((inline_citation_hits / len(questions)) * 100.0, 1),
+        "citation_validity_percent": round(
+            (valid_citation_answers / citation_hits) * 100.0 if citation_hits else 0.0, 1
+        ),
         "answers_with_pmid": citation_hits,
+        "answers_with_inline_pmid": inline_citation_hits,
+        "answers_with_valid_citations": valid_citation_answers,
         "total_answers": len(questions),
     }
 
@@ -125,6 +163,8 @@ def run_benchmark(
 
     print("\nBenchmark summary")
     print("-" * 50)
+    print(f"Errors: {summary['errors']}/{summary['num_questions']}")
+    print(f"Call limit reached: {summary['call_limit_reached']}/{summary['num_questions']}")
     print(f"Average latency: {summary['avg_latency_seconds']}s")
     print(f"P95 latency: {summary['p95_latency_seconds']}s")
     print(
@@ -132,6 +172,18 @@ def run_benchmark(
         f"{summary['citation_coverage_percent']}% "
         f"({summary['answers_with_pmid']}/{summary['total_answers']})"
     )
+    print(
+        "Inline citation rate: "
+        f"{summary['inline_citation_rate_percent']}% "
+        f"({summary['answers_with_inline_pmid']}/{summary['total_answers']})"
+    )
+    print(
+        "Citation validity: "
+        f"{summary['citation_validity_percent']}% "
+        f"({summary['answers_with_valid_citations']}/{summary['answers_with_pmid']} cited answers)"
+    )
+    print(f"Questions requiring re-query: {summary['questions_requiring_requery']}")
+    print(f"Verification call rate: {summary['verification_call_rate_percent']}%")
     print(f"Saved results to: {output_file}")
 
     return payload
@@ -149,7 +201,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--ingest-query",
-        default="fatty liver",
+        default="intermittent fasting",
         help="PubMed query used to load benchmark corpus before evaluation.",
     )
     parser.add_argument(

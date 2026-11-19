@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     
     # OpenAI
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
-    model_name: str = os.getenv("MODEL_NAME", "gpt-3.5-turbo")
+    model_name: str = os.getenv("MODEL_NAME", "gpt-4o-mini")
     temperature: float = float(os.getenv("TEMPERATURE", 0.7))
     max_tokens: int = int(os.getenv("MAX_TOKENS", 2000))
     

@@ -4,6 +4,7 @@ Main entry point for the RAG system.
 
 import sys
 import os
+import re
 
 # Allow running this script from either project root or the src folder.
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -16,6 +17,18 @@ from src.retriever import get_retriever
 from src.agent import create_qa_agent, query_agent
 
 
+def extract_search_keywords(question: str) -> str:
+    """Extract useful search terms from a natural-language question."""
+    stop_words = {
+        "a", "about", "an", "and", "are", "can", "does", "for", "how",
+        "in", "is", "of", "on", "or", "the", "to", "treatment", "what",
+        "when", "which", "with", "why", "recent", "latest",
+    }
+    words = re.findall(r"[A-Za-z0-9-]+", question.lower())
+    keywords = [word for word in words if word not in stop_words and len(word) > 1]
+    return " ".join(dict.fromkeys(keywords)) or question.strip()
+
+
 def main():
     """Main application flow."""
     
@@ -23,16 +36,16 @@ def main():
     print("AGENTIC RAG SYSTEM FOR PUBMED")
     print("="*70 + "\n")
     
-    # Check if vector DB is populated
+    # Capture the question before optional ingestion so it can be processed automatically.
     retriever = get_retriever()
+    initial_question = input("What question would you like to ask? ").strip()
     
     # Step 1: Load sample data (optional)
     setup_data = input("Would you like to load sample PubMed articles? (y/n): ").lower() == 'y'
     
     if setup_data:
-        query = input("What topic should I search in medical research? (Press Enter for 'fatty liver'): ").strip()
-        if not query:
-            query = "fatty liver"
+        query = extract_search_keywords(initial_question)
+        print(f"Searching PubMed using keywords: {query}")
         
         # Fetch and process data (faster default run size)
         documents = pipeline(query, max_articles=50)
@@ -43,7 +56,6 @@ def main():
             print(f"\n✓ Loaded {len(documents)} document chunks into vector database\n")
         else:
             print("No documents to load.\n")
-    
     # Step 2: Create agent
     print("Initializing QA agent...")
     agent = create_qa_agent(memory_enabled=True)
@@ -56,8 +68,10 @@ def main():
     print("Ask questions about the loaded documents.")
     print("Type 'quit' to exit.\n")
     
+    question = initial_question
     while True:
-        question = input("\nYour question: ").strip()
+        if not question:
+            question = input("\nYour question: ").strip()
         
         if question.lower() in ['quit', 'exit', 'q']:
             print("Exiting...")
@@ -78,6 +92,8 @@ def main():
         print("-"*70)
         print(response)
         print("-"*70)
+
+        question = ""
 
 
 def demo():
