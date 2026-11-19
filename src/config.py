@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     # OpenAI
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     model_name: str = os.getenv("MODEL_NAME", "gpt-4o-mini")
+    embedding_model: str = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
     temperature: float = float(os.getenv("TEMPERATURE", 0))
     max_tokens: int = int(os.getenv("MAX_TOKENS", 2000))
     
@@ -27,7 +28,6 @@ class Settings(BaseSettings):
     
     # Retrieval
     retrieval_top_k: int = int(os.getenv("RETRIEVAL_TOP_K", 5))
-    retrieval_score_threshold: float = float(os.getenv("RETRIEVAL_SCORE_THRESHOLD", 0.5))
     chunk_size: int = int(os.getenv("CHUNK_SIZE", 1000))
     chunk_overlap: int = int(os.getenv("CHUNK_OVERLAP", 200))
     

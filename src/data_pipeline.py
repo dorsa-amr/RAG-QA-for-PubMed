@@ -89,6 +89,7 @@ class PubMedFetcher:
             "term": query,
             "retmode": "json",
             "retmax": max_results,
+            "sort": "relevance",
             **PubMedFetcher._identity_params(),
         }
         

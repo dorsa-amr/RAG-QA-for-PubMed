@@ -24,7 +24,8 @@ class VectorStore:
         
         # Initialize embeddings
         self.embeddings = OpenAIEmbeddings(
-            openai_api_key=settings.openai_api_key
+            openai_api_key=settings.openai_api_key,
+            model=settings.embedding_model,
         )
         
         # Initialize vector store
@@ -98,48 +99,15 @@ class RetrieverPipeline:
         """Initialize the retriever."""
         self.vector_store = VectorStore()
     
-    def retrieve(self, query: str, top_k: int | None = None, score_threshold: float | None = None) -> List[Dict[str, Any]]:
-        """
-        Retrieve relevant documents for a query.
-        
-        Args:
-            query: User query
-            top_k: Number of results (uses config default if None)
-            score_threshold: Minimum similarity threshold (uses config if None)
-            
-        Returns:
-            List of dicts with document content and metadata
-        """
+    def retrieve(self, query: str, top_k: int | None = None) -> List[Dict[str, Any]]:
+        """Return the top_k closest chunks with their metadata and distance (lower is closer)."""
         if top_k is None:
             top_k = settings.retrieval_top_k
-        if score_threshold is None:
-            score_threshold = settings.retrieval_score_threshold
-        
         results = self.vector_store.search_with_scores(query, k=top_k)
-        
-        # Chroma similarity_search_with_score returns distance (lower is better)
-        filtered_results = [
-            {
-                "content": doc.page_content,
-                "metadata": doc.metadata,
-                "score": score
-            }
+        return [
+            {"content": doc.page_content, "metadata": doc.metadata, "score": score}
             for doc, score in results
-            if score <= score_threshold
         ]
-
-        # If strict threshold removes all results, fall back to top matches.
-        if not filtered_results and results:
-            filtered_results = [
-                {
-                    "content": doc.page_content,
-                    "metadata": doc.metadata,
-                    "score": score
-                }
-                for doc, score in results[:top_k]
-            ]
-        
-        return filtered_results
 
 
 # Global retriever instance

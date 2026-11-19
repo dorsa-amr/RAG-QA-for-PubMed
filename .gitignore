@@ -38,9 +38,7 @@ htmlcov/
 Thumbs.db
 
 # Local vector database and generated data
-data/chroma_db/
-data/vector_db/
-data/chroma_db_benchmark/
+data/
 # Created when the app is run from inside src/ (relative CHROMA_DB_PATH)
 src/data/
 
