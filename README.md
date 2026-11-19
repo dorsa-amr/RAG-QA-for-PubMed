@@ -1,5 +1,7 @@
 # LLM-RAG
 
+[![Tests](https://github.com/dorsa-amr/RAG-QA-for-PubMed/actions/workflows/tests.yml/badge.svg)](https://github.com/dorsa-amr/RAG-QA-for-PubMed/actions/workflows/tests.yml)
+
 This project implements a tool-calling, evidence-grounded Retrieval-Augmented Generation (RAG) agent for PubMed articles. It uses LangChain, ChromaDB, and OpenAI APIs to provide reliable answers while making bounded decisions about retrieval, re-querying, and citation verification.
 
 ## Features
@@ -54,6 +56,15 @@ The primary execution path is a bounded multi-agent workflow. A planner classifi
 Each role has a distinct handoff: the planner produces a research plan, the researcher produces a draft plus tool evidence, and the verifier produces the final response. Per-question traces record the participating roles, tool calls, retrieval rounds, and verification status.
 
 Conversation memory is enabled by the interactive application. Previous questions and generated answers help interpret follow-ups such as `What about side effects?`, but each new question still performs its own retrieval against the loaded document collection.
+
+## Tests
+
+A few unit tests cover the citation helpers, the search budget, chunking and the benchmark maths. They don't call OpenAI or PubMed.
+
+```bash
+pip install pytest
+pytest
+```
 
 ## Contributing
 Feel free to open issues or submit pull requests.

@@ -51,7 +51,7 @@ class VectorStore:
         self.vector_store.add_documents(documents, ids=ids)
         print("Documents added successfully")
     
-    def search(self, query: str, k: int = None) -> List[Document]:
+    def search(self, query: str, k: int | None = None) -> List[Document]:
         """
         Semantic search over documents.
         
@@ -68,7 +68,7 @@ class VectorStore:
         results = self.vector_store.similarity_search(query, k=k)
         return results
     
-    def search_with_scores(self, query: str, k: int = None) -> List[tuple]:
+    def search_with_scores(self, query: str, k: int | None = None) -> List[tuple]:
         """
         Semantic search with similarity scores.
         
@@ -98,7 +98,7 @@ class RetrieverPipeline:
         """Initialize the retriever."""
         self.vector_store = VectorStore()
     
-    def retrieve(self, query: str, top_k: int = None, score_threshold: float = None) -> List[Dict[str, Any]]:
+    def retrieve(self, query: str, top_k: int | None = None, score_threshold: float | None = None) -> List[Dict[str, Any]]:
         """
         Retrieve relevant documents for a query.
         

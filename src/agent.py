@@ -152,28 +152,8 @@ class MultiAgentResearchSystem:
         return {"messages": research_messages_result + [AIMessage(content=final_answer)]}
 
 
-def create_qa_agent(memory_enabled: bool = True):
-    """
-    Create a question-answering agent with retrieval capabilities.
-    
-    Args:
-        memory_enabled: Whether to enable conversation memory
-        
-    Returns:
-        Initialized agent
-    """
-    
-    llm = ChatOpenAI(
-        openai_api_key=settings.openai_api_key,
-        model=settings.model_name,
-        temperature=settings.temperature,
-        max_tokens=settings.max_tokens,
-    )
-
-    retrieval = RetrievalTool()
-    session_pmids: set[str] = set()
-    # Searches used for the current question; reset by MultiAgentResearchSystem.invoke.
-    search_state = {"searches": 0}
+def build_research_tools(retriever, session_pmids: set[str], search_state: Dict[str, int]) -> list:
+    """Create the researcher's search and verification tools."""
 
     def budgeted_search(query: str) -> str:
         # Enforced in code: when the corpus lacks an answer, the model would otherwise keep rephrasing.
@@ -183,9 +163,9 @@ def create_qa_agent(memory_enabled: bool = True):
                 "retrieved and state clearly what the evidence does not cover."
             )
         search_state["searches"] += 1
-        results = retrieval.retriever.retrieve(query)
+        results = retriever.retrieve(query)
         session_pmids.update(_extract_pmids(results))
-        return retrieval.format_results(results)
+        return RetrievalTool.format_results(results)
 
     @tool("document_search")
     def document_search(query: str) -> str:
@@ -209,9 +189,35 @@ def create_qa_agent(memory_enabled: bool = True):
             return "FAIL: retrieved evidence exists, but the draft has no PMID citations."
         return "PASS: citation format and PMID membership checks passed."
 
+    return [document_search, search_more, verify_answer]
+
+
+def create_qa_agent(memory_enabled: bool = True):
+    """
+    Create a question-answering agent with retrieval capabilities.
+    
+    Args:
+        memory_enabled: Whether to enable conversation memory
+        
+    Returns:
+        Initialized agent
+    """
+    
+    llm = ChatOpenAI(
+        openai_api_key=settings.openai_api_key,
+        model=settings.model_name,
+        temperature=settings.temperature,
+        max_tokens=settings.max_tokens,
+    )
+
+    retrieval = RetrievalTool()
+    session_pmids: set[str] = set()
+    # Searches used for the current question; reset by MultiAgentResearchSystem.invoke.
+    search_state = {"searches": 0}
+
     researcher = create_agent(
         model=llm,
-        tools=[document_search, search_more, verify_answer],
+        tools=build_research_tools(retrieval.retriever, session_pmids, search_state),
         system_prompt=(
             "You are a biomedical QA assistant with access to PubMed articles. "
             "Decide whether the question requires PubMed evidence. For biomedical or "

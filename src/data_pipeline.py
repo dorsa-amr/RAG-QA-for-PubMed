@@ -43,7 +43,7 @@ class PubMedFetcher:
     @staticmethod
     def _get_with_retries(url: str, params: Dict[str, str], timeout: int = 15, retries: int = 3) -> requests.Response:
         """HTTP GET with light retry/backoff for transient API limits and network issues."""
-        last_error = None
+        last_error: Exception | None = None
         for attempt in range(retries):
             try:
                 response = requests.get(
@@ -59,15 +59,18 @@ class PubMedFetcher:
                 return response
             except Exception as e:
                 last_error = e
+                if attempt == retries - 1:
+                    break  # no retry follows, so don't wait
                 # Backoff for rate limits/transient issues.
                 sleep_s = 0.75 * (attempt + 1)
                 if isinstance(e, requests.HTTPError) and e.response is not None and e.response.status_code == 429:
                     sleep_s = 2 ** (attempt + 1)
                 time.sleep(sleep_s)
+        assert last_error is not None
         raise last_error
     
     @staticmethod
-    def search(query: str, max_results: int = None) -> List[str]:
+    def search(query: str, max_results: int | None = None) -> List[str]:
         """
         Search PubMed and get PMIDs.
         
@@ -379,7 +382,7 @@ class DocumentProcessor:
         return documents
 
 
-def pipeline(query: str = "machine learning", max_articles: int = None) -> List[Document]:
+def pipeline(query: str = "machine learning", max_articles: int | None = None) -> List[Document]:
     """
     Complete data pipeline: fetch → process → return documents.
     
