@@ -44,8 +44,10 @@ def main():
     retriever = get_retriever()
     initial_question = input("What question would you like to ask? ").strip()
     
-    # Step 1: Load sample data (optional)
-    setup_data = input("Would you like to load sample PubMed articles? (y/n): ").lower() == 'y'
+    # Step 1: Load new articles (optional)
+    print("\ny = search PubMed for this question and add up to 50 new articles to your library")
+    print("n = answer using only the articles already stored")
+    setup_data = input("Download new articles? (y/n): ").lower() == 'y'
     
     if setup_data:
         query = extract_search_keywords(initial_question)
