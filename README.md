@@ -27,10 +27,9 @@ python src/main.py
 ```
 
 ### How to interact with the app
-- When asked, choose `y` if you want to load sample PubMed articles.
-- Enter a health topic (for example, `fatty liver`) when prompted.
-- If you press Enter without typing a topic, the app uses `fatty liver` by default.
-- After loading, ask your questions in plain language.
+- Type your first question (for example, `Does intermittent fasting help with weight loss?`).
+- Choose `y` to load PubMed articles. The app searches PubMed with keywords from your question and loads up to 50 articles.
+- The app answers your question, then you can ask follow-up questions in plain language.
 - Type `quit` anytime to exit.
 
 ## Benchmark
